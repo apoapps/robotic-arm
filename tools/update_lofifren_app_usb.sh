@@ -20,6 +20,13 @@ text = path.read_text()
 text = text.replace('def find_py_files(base_path="/sd"):', 'def find_py_files(base_path="/sd/py_scripts"):')
 text = text.replace('relative_path = full_path[len("/sd/"):-3]', 'relative_path = full_path[len("/sd/py_scripts/"):-3]')
 text = text.replace('def run_script(script_path, base_path="/sd"):', 'def run_script(script_path, base_path="/sd/py_scripts"):')
+old = """                    _w(f'{name} exited.\\n\\n')
+                    _rst()
+                    input("Press Enter for menu...")"""
+new = """                    _w(f'{name} exited.\\n')
+                    _rst()
+                    utime.sleep_ms(500)"""
+text = text.replace(old, new)
 path.write_text(text)
 PY
   python3 -m mpremote connect "$PORT" fs cp "$TMP_PY_RUN" :/modules/py_run.py

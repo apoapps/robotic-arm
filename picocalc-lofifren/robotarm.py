@@ -36,6 +36,7 @@ status = "Ready"
 key_buf = bytearray(16)
 labels = ("EE", "Q1", "Q2", "Q3")
 axis_names = ("End effector", "Base", "Shoulder", "Elbow")
+menu_items = ("Presets", "Manual Control", "Connection", "Help", "Save Config")
 
 
 def wr(text):
@@ -78,6 +79,13 @@ def line(text, selected=False):
     else:
         wr("   {}".format(text[: W - 4]))
     wr("\n")
+
+
+def nav_hint(text):
+    style(dim=True)
+    wr(text[:W])
+    wr("\n")
+    reset_style()
 
 
 def pill(text, fg=WHITE, bg=BLUE):
@@ -177,30 +185,48 @@ def draw_header(title):
     at(4, 1)
 
 
-def draw_home():
-    name, angles = poses[pose_index]
-    draw_header("Robot Arm Control")
-    pill("PRESET", BLACK, GREEN if cursor == 0 else BLUE)
-    wr("  {} ({}/{})\n".format(name, pose_index + 1, len(poses)))
-    wr("   ")
-    for idx, label in enumerate(labels):
-        wr("{}:{}  ".format(label, angles[idx]))
-    wr("\n\n")
-    line("Manual axis control", cursor == 1)
-    line("Connection/settings", cursor == 2)
-    line("Save config", cursor == 3)
+def draw_status():
     wr("\n")
-    field("Target", "{}:{}".format(config["host"], config["port"]), 30)
-    field("Move", "{} ms   step {}".format(config["move_ms"], config["step"]), 30)
-    style(dim=True)
-    wr("< > preset   Enter send/open   M manual   S save\n")
-    wr("Esc exits to menu\n")
+    style(fg=YELLOW, bold=True)
+    wr("Status ")
     reset_style()
-    wr(status)
+    wr(str(status)[: W - 8])
+
+
+def draw_home():
+    draw_header("Robot Arm")
+    pill("PICO 2 W", BLACK, GREEN)
+    wr("  ")
+    pill("{}:{}".format(config["host"], config["port"]), BLACK, BLUE)
+    wr("\n")
+    pill("LIVE {}".format("ON" if config.get("live", True) else "OFF"), BLACK, YELLOW)
+    wr("  ")
+    pill("STEP {}".format(config["step"]), BLACK, MAGENTA)
+    wr("\n\n")
+    for idx, item in enumerate(menu_items):
+        line("{}. {}".format(idx + 1, item), cursor == idx)
+    wr("\n")
+    nav_hint("Up/Down select  Enter open  1-5 shortcut  Q exit")
+    draw_status()
+
+
+def draw_presets():
+    name, angles = poses[pose_index]
+    draw_header("Presets")
+    pill(name, BLACK, GREEN)
+    wr("  Pose {}/{}\n\n".format(pose_index + 1, len(poses)))
+    for idx, label in enumerate(labels):
+        wr(" {} {:>3} ".format(label, angles[idx]))
+        bar(angles[idx], False)
+        wr("\n")
+    wr("\n")
+    nav_hint("Left/Right choose preset  Enter send  M manual")
+    nav_hint("Esc dashboard")
+    draw_status()
 
 
 def draw_manual():
-    draw_header("Manual Axis Control")
+    draw_header("Manual Control")
     style(dim=True)
     wr("Axis: ")
     reset_style()
@@ -219,38 +245,53 @@ def draw_manual():
         bar(manual[idx], joint == idx)
         wr("  {}\n".format(axis_names[idx]))
     wr("\n")
-    style(dim=True)
-    wr("1-4 axis  Up/Down axis  Left/Right angle +/-{}\n".format(config["step"]))
-    wr("+/- angle  S/Enter send  L live  H neutral  Esc home\n")
-    reset_style()
-    wr(status)
+    nav_hint("Up/Down axis  Left/Right angle +/-{}".format(config["step"]))
+    nav_hint("1-4 axis  S/Enter send  L live  H neutral")
+    nav_hint("Esc dashboard")
+    draw_status()
 
 
 def draw_settings():
-    draw_header("Settings")
+    draw_header("Connection")
     rows = [
-        "Host {}".format(config["host"]),
-        "Port {}".format(config["port"]),
-        "Move ms {}".format(config["move_ms"]),
-        "Step {}".format(config["step"]),
-        "Live {}".format("on" if config.get("live", True) else "off"),
+        "Host         {}".format(config["host"]),
+        "Port         {}".format(config["port"]),
+        "Move time    {} ms".format(config["move_ms"]),
+        "Step         {}".format(config["step"]),
+        "Live send    {}".format("ON" if config.get("live", True) else "OFF"),
     ]
     for idx, row in enumerate(rows):
         line(row, cursor == idx)
     wr("\n")
-    style(dim=True)
-    wr("Left/Right field  Up/Down value  Enter save\nEsc home\n")
-    reset_style()
-    wr(status)
+    nav_hint("Up/Down value  Left/Right field  Enter save")
+    nav_hint("Esc dashboard")
+    draw_status()
+
+
+def draw_help():
+    draw_header("Help")
+    field("Presets", "ready-made robot poses", 35)
+    field("Manual", "move one axis at a time", 35)
+    field("Live", "send every angle change", 35)
+    field("Host", "robot controller IP", 35)
+    field("Port", "robot controller TCP port", 35)
+    wr("\n")
+    nav_hint("Manual: arrows move, 1-4 selects EE/Q1/Q2/Q3")
+    nav_hint("S sends, H neutral, L live, Esc dashboard")
+    draw_status()
 
 
 def draw():
     if screen == 0:
         draw_home()
     elif screen == 1:
+        draw_presets()
+    elif screen == 2:
         draw_manual()
-    else:
+    elif screen == 3:
         draw_settings()
+    else:
+        draw_help()
 
 
 def read_key():
@@ -282,8 +323,16 @@ def read_key():
         return "live"
     if data in (b"h", b"H"):
         return "home"
+    if data in (b"p", b"P"):
+        return "presets"
+    if data in (b"c", b"C"):
+        return "connection"
+    if data in (b"?", b"/"):
+        return "help"
     if data in (b"1", b"2", b"3", b"4"):
         return data.decode()
+    if data in (b"5",):
+        return "5"
     return None
 
 
@@ -337,37 +386,63 @@ def loop():
                 clear()
                 return
             if key == "up":
-                cursor = (cursor - 1) % 4
+                cursor = (cursor - 1) % len(menu_items)
             elif key == "down":
-                cursor = (cursor + 1) % 4
-            elif key == "left" and cursor == 0:
-                pose_index = (pose_index - 1) % len(poses)
-            elif key == "right" and cursor == 0:
-                pose_index = (pose_index + 1) % len(poses)
+                cursor = (cursor + 1) % len(menu_items)
             elif key == "enter":
                 if cursor == 0:
-                    try:
-                        status = send_pose(poses[pose_index][1])
-                    except Exception as exc:
-                        status = "Send error {}".format(exc)[:34]
-                elif cursor == 1:
                     screen = 1
+                    status = "Choose preset"
+                elif cursor == 1:
+                    screen = 2
                     status = "Manual"
                 elif cursor == 2:
-                    screen = 2
+                    screen = 3
                     cursor = 0
-                    status = "Settings"
-                else:
+                    status = "Connection"
+                elif cursor == 3:
+                    screen = 4
+                    status = "Help"
+                elif cursor == 4:
                     save_config()
-            elif key == "manual":
+            elif key == "1":
                 screen = 1
+                status = "Choose preset"
+            elif key == "2" or key == "manual":
+                screen = 2
                 status = "Manual"
-            elif key == "send":
+            elif key == "3" or key == "connection":
+                screen = 3
+                cursor = 0
+                status = "Connection"
+            elif key == "4" or key == "help":
+                screen = 4
+                status = "Help"
+            elif key == "5" or key == "send":
                 save_config()
         elif screen == 1:
             if key == "esc":
                 screen = 0
+                cursor = 0
+            elif key == "left":
+                pose_index = (pose_index - 1) % len(poses)
+            elif key == "right":
+                pose_index = (pose_index + 1) % len(poses)
+            elif key == "manual":
+                manual[:] = poses[pose_index][1][:]
+                screen = 2
+                status = "Loaded {}".format(poses[pose_index][0])
+            elif key in ("enter", "send"):
+                try:
+                    status = send_pose(poses[pose_index][1])
+                except Exception as exc:
+                    status = "Send error {}".format(exc)[:34]
+        elif screen == 2:
+            if key == "esc":
+                screen = 0
                 cursor = 1
+            elif key == "manual":
+                status = "Manual"
             elif key == "left":
                 adjust_manual(-1)
             elif key == "right":
@@ -391,7 +466,7 @@ def loop():
                 status = "Live {}".format("on" if config["live"] else "off")
             elif key in ("enter", "send"):
                 send_current()
-        else:
+        elif screen == 3:
             if key == "esc":
                 screen = 0
                 cursor = 2
@@ -405,6 +480,10 @@ def loop():
                 edit_setting(-1)
             elif key == "enter":
                 save_config()
+        else:
+            if key == "esc":
+                screen = 0
+                cursor = 3
         draw()
 
 
