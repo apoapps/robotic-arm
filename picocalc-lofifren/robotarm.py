@@ -358,8 +358,13 @@ def poll_web():
         body = web_html()
         client.send("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n")
         client.send(body)
-    finally:
-        client.close()
+    except Exception:
+        try:
+            client.close()
+        except Exception:
+            pass
+        return False
+    client.close()
     return True
 
 
