@@ -6,9 +6,6 @@ const axes = ["EE", "Q1", "Q2", "Q3"];
 const axisNames = ["End effector", "Base", "Shoulder", "Elbow"];
 
 const fallbackState = {
-  mode: "gpio",
-  host: "192.168.4.1",
-  port: 7777,
   move_ms: 250,
   step: 5,
   live: true,
@@ -93,7 +90,7 @@ function App() {
           </div>
           <div className="text-right text-sm uppercase">
             <div>{status}</div>
-            <div>{state.mode?.toUpperCase()}</div>
+            <div>PINS</div>
           </div>
         </header>
 
@@ -153,13 +150,6 @@ function App() {
 
                 <section className="border-2 border-black p-4">
                   <h2 className="mb-3 text-xl font-black uppercase">Settings</h2>
-                  <label className="mb-3 block">
-                    <span className="block text-sm uppercase">Mode</span>
-                    <select className="w-full border-2 border-black bg-white p-2" value={state.mode} onChange={(e) => sync({ ...state, mode: e.target.value })}>
-                      <option value="gpio">GPIO</option>
-                      <option value="tcp">TCP</option>
-                    </select>
-                  </label>
                   <label className="mb-3 block">
                     <span className="block text-sm uppercase">Pulse / time ms</span>
                     <input className="w-full border-2 border-black p-2" type="number" value={state.move_ms} onChange={(e) => sync({ ...state, move_ms: Number(e.target.value) })} />

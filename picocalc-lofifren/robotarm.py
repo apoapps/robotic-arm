@@ -4,20 +4,19 @@ import socket
 import time
 from machine import Pin
 
+import network
 import picocalc
 
 E = "\033"
 W = 53
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 CONFIG_PATH = "/sd/robotarm.json"
+AP_SSID = "PICOCALC_ROBOT"
+AP_PASSWORD = "robot12345"
 
 config = {
-    "mode": "gpio",
-    "host": "192.168.4.1",
-    "port": 7777,
     "move_ms": 250,
     "step": 5,
-    "live": True,
 }
 
 gpio_pairs = (
@@ -28,25 +27,15 @@ gpio_pairs = (
 )
 gpio_pins = None
 
-poses = [
-    ["Neutral", [90, 90, 90, 90]],
-    ["Pick", [35, 82, 120, 55]],
-    ["Lift", [35, 92, 82, 82]],
-    ["Place", [115, 88, 108, 72]],
-    ["Open", [25, 90, 90, 90]],
-    ["Close", [70, 90, 90, 90]],
-]
-
 screen = 0
 cursor = 0
-pose_index = 0
 joint = 0
 manual = [90, 90, 90, 90]
 status = "Ready"
 key_buf = bytearray(16)
 labels = ("EE", "Q1", "Q2", "Q3")
 axis_names = ("Grip", "Base", "Shoulder", "Elbow")
-menu_items = ("Manual", "Pins", "Config", "Save")
+menu_items = ("Manual", "Web", "Pins", "Save")
 
 
 def wr(text):
@@ -196,33 +185,6 @@ def save_config():
         status = "Save error {}".format(exc)[:34]
 
 
-def command(angles):
-    t = int(config["move_ms"])
-    return "<BUZZ,{},{},{},{},{},{},{},{}>".format(
-        int(angles[0]), int(angles[1]), int(angles[2]), int(angles[3]), t, t, t, t
-    )
-
-
-def send_pose(angles):
-    cmd = command(angles)
-    addr = socket.getaddrinfo(config["host"], int(config["port"]))[0][-1]
-    s = socket.socket()
-    s.settimeout(3)
-    try:
-        s.connect(addr)
-        s.send(cmd.encode())
-        s.send(b"\n")
-        try:
-            reply = s.recv(96)
-        except OSError:
-            reply = b""
-    finally:
-        s.close()
-    if reply:
-        return reply.decode("utf-8", "ignore")[:32]
-    return "Sent {}".format(cmd[:20])
-
-
 def draw_header(title):
     clear()
     style(fg=WHITE, bold=True)
@@ -250,7 +212,7 @@ def draw_status():
 
 def draw_home():
     draw_header("Robot")
-    pill("GPIO")
+    pill("PINS")
     wr("  ")
     pill("{}ms".format(config["move_ms"]))
     wr("\n")
@@ -262,29 +224,146 @@ def draw_home():
     draw_status()
 
 
-def draw_presets():
-    name, angles = poses[pose_index]
-    draw_header("Presets")
-    pill(name)
-    wr("  Pose {}/{}\n\n".format(pose_index + 1, len(poses)))
-    for idx, label in enumerate(labels):
-        wr(" {} {:>3} ".format(label, angles[idx]))
-        bar(angles[idx], False)
-        wr("\n")
+def launch_web():
+    global status
+    try:
+        serve_web()
+        status = "Web closed"
+    except Exception as exc:
+        status = "Web error {}".format(exc)[:34]
+
+
+def start_ap():
+    try:
+        network.country("US")
+    except Exception:
+        pass
+    ap = network.WLAN(network.AP_IF)
+    try:
+        ap.active(False)
+        time.sleep_ms(300)
+    except Exception:
+        pass
+    try:
+        ap.config(essid=AP_SSID, password=AP_PASSWORD, channel=6, authmode=3)
+    except Exception:
+        try:
+            ap.config(ssid=AP_SSID, password=AP_PASSWORD, channel=6)
+        except Exception:
+            ap.config(essid=AP_SSID, password=AP_PASSWORD)
+    ap.active(True)
+    for _ in range(20):
+        if ap.active():
+            break
+        time.sleep_ms(250)
+    return ap
+
+
+def draw_web(ip):
+    draw_header("Web")
+    field("SSID", AP_SSID, 35)
+    field("PASS", AP_PASSWORD, 35)
+    field("URL", "http://{}".format(ip), 35)
     wr("\n")
-    if config["mode"] == "gpio":
-        nav_hint("Presets are preview only in GPIO mode")
-    else:
-        nav_hint("Left/Right choose preset  Enter send  M manual")
-    nav_hint("Esc dashboard")
+    nav_hint("Safari -> Wi-Fi -> URL")
+    nav_hint("Q / Back exits")
     draw_status()
+
+
+def web_html():
+    rows = ""
+    for i in range(4):
+        active = " selected" if i == joint else ""
+        rows += """
+<section class="axis{active}">
+<button onclick="setAxis({i})">{label}</button>
+<span>{name}</span><strong>{value}</strong>
+<input type="range" min="0" max="180" value="{value}" onchange="setVal({i},this.value)">
+</section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i])
+    return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Robot</title><style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#fff;color:#000}
+body{border:4px solid #000}header,footer{padding:12px;border-bottom:4px solid #000}footer{border-top:4px solid #000;border-bottom:0}
+main{padding:12px}.title{font-size:24px;font-weight:900;text-transform:uppercase}.team{font-size:12px;text-transform:uppercase}
+button,input{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit}button{padding:12px;font-weight:900}
+.grid{display:grid;gap:10px}.axis{border:2px solid #000;padding:10px;display:grid;gap:8px}.selected{background:#000;color:#fff}
+.moves{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.stop{grid-column:1/3}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+</style></head><body>
+<header><div class="title">Proyecto final Robotica</div><div class="team">Apodaca, Calderon, Soriano, Ochoa</div></header>
+<main><div class="meta"><div>Axis <b>{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b>{status}</b></div>
+<div class="moves"><button onclick="move(-1)">Reverse</button><button onclick="move(1)">Forward</button><button class="stop" onclick="stopAll()">Stop</button></div>
+<div class="grid">{rows}</div></main><footer>EE 2/3 | Q1 4/5 | Q2 21/28 | Q3 8/9</footer>
+<script>function go(p){{fetch(p).then(()=>location.reload())}}function setAxis(i){{go('/axis?i='+i)}}function setVal(i,v){{go('/set?i='+i+'&v='+v)}}function move(d){{go('/move?d='+d)}}function stopAll(){{go('/stop')}}</script>
+</body></html>""".format(axis=labels[joint], pulse=config["move_ms"], status=status, rows=rows)
+
+
+def query_int(path, name, default):
+    token = name + "="
+    pos = path.find(token)
+    if pos < 0:
+        return default
+    pos += len(token)
+    end = path.find("&", pos)
+    if end < 0:
+        end = len(path)
+    try:
+        return int(path[pos:end])
+    except Exception:
+        return default
+
+
+def handle_web(path):
+    global joint, status
+    if path.startswith("/axis"):
+        joint = clamp(query_int(path, "i", joint), 0, 3)
+        status = "Axis {}".format(labels[joint])
+    elif path.startswith("/set"):
+        i = clamp(query_int(path, "i", joint), 0, 3)
+        manual[i] = clamp(query_int(path, "v", manual[i]), 0, 180)
+        joint = i
+        status = "{} {}".format(labels[i], manual[i])
+    elif path.startswith("/move"):
+        d = query_int(path, "d", 1)
+        adjust_manual(1 if d >= 0 else -1)
+    elif path.startswith("/stop"):
+        stop_gpio()
+        status = "Outputs stopped"
+
+
+def serve_web():
+    global status
+    ap = start_ap()
+    ip = ap.ifconfig()[0]
+    status = "Web ready"
+    draw_web(ip)
+    s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(socket.getaddrinfo("0.0.0.0", 80)[0][-1])
+    s.listen(2)
+    s.settimeout(0.25)
+    while True:
+        try:
+            if read_key() == "esc":
+                break
+            client, _ = s.accept()
+            req = client.recv(512).decode("utf-8", "ignore")
+            first = req.split("\r\n")[0].split(" ")
+            path = first[1] if len(first) > 1 else "/"
+            handle_web(path)
+            body = web_html()
+            client.send("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n")
+            client.send(body)
+            client.close()
+            draw_web(ip)
+        except OSError:
+            pass
+    stop_gpio()
+    s.close()
 
 
 def draw_manual():
     draw_header("Manual")
     pill("{} {}".format(labels[joint], axis_names[joint]))
-    wr("  ")
-    pill(config["mode"].upper())
     wr("\n\n")
     for idx, label in enumerate(labels):
         if joint == idx:
@@ -297,30 +376,8 @@ def draw_manual():
         bar(manual[idx], joint == idx)
         wr(" {}\n".format(axis_names[idx]))
     wr("\n")
-    if config["mode"] == "gpio":
-        nav_hint("UP/DOWN axis   LEFT/RIGHT pulse")
-        nav_hint("1-4 axis      S stop      ESC")
-    else:
-        nav_hint("UP/DOWN axis   LEFT/RIGHT +/-{}".format(config["step"]))
-        nav_hint("S send         L live     ESC")
-    draw_status()
-
-
-def draw_settings():
-    draw_header("Config")
-    rows = [
-        "Mode         {}".format(config["mode"].upper()),
-        "Host         {}".format(config["host"]),
-        "Port         {}".format(config["port"]),
-        "Pulse/time   {} ms".format(config["move_ms"]),
-        "Step         {}".format(config["step"]),
-        "Live send    {}".format("ON" if config.get("live", True) else "OFF"),
-    ]
-    for idx, row in enumerate(rows):
-        line(row, cursor == idx)
-    wr("\n")
-    nav_hint("LEFT/RIGHT field   UP/DOWN value")
-    nav_hint("ENTER save         ESC")
+    nav_hint("UP/DOWN axis   LEFT/RIGHT pulse")
+    nav_hint("1-4 axis      S stop      ESC")
     draw_status()
 
 
@@ -343,10 +400,8 @@ def draw():
         draw_manual()
     elif screen == 2:
         draw_help()
-    elif screen == 3:
-        draw_settings()
     else:
-        draw_presets()
+        draw_help()
 
 
 def read_key():
@@ -354,7 +409,7 @@ def read_key():
     if not n:
         return None
     data = bytes(key_buf[:n])
-    if data in (b"\x1b", b"q", b"Q"):
+    if data in (b"\x1b", b"\x1b\x1b", b"\x08", b"\x7f", b"q", b"Q"):
         return "esc"
     if data in (b"\r", b"\n"):
         return "enter"
@@ -391,57 +446,25 @@ def read_key():
     return None
 
 
-def edit_setting(delta):
-    hosts = ("192.168.4.1", "192.168.1.100", "10.0.0.1", "robot.local")
-    if cursor == 0:
-        config["mode"] = "tcp" if config["mode"] == "gpio" else "gpio"
-    elif cursor == 1:
-        try:
-            idx = hosts.index(config["host"])
-        except ValueError:
-            idx = 0
-        config["host"] = hosts[(idx + delta) % len(hosts)]
-    elif cursor == 2:
-        config["port"] = clamp(int(config["port"]) + delta, 1, 65535)
-    elif cursor == 3:
-        config["move_ms"] = clamp(int(config["move_ms"]) + delta * 50, 50, 2000)
-    elif cursor == 4:
-        config["step"] = clamp(int(config["step"]) + delta, 1, 30)
-    else:
-        config["live"] = not config.get("live", True)
-
-
 def send_current():
     global status
-    if config["mode"] == "gpio":
-        stop_gpio()
-        status = "GPIO outputs stopped"
-        return
-    try:
-        status = send_pose(manual)
-    except Exception as exc:
-        status = "Send error {}".format(exc)[:34]
+    stop_gpio()
+    status = "Outputs stopped"
 
 
 def adjust_manual(delta):
     global status
     manual[joint] = clamp(manual[joint] + (delta * int(config["step"])), 0, 180)
-    if config["mode"] == "gpio":
-        try:
-            pulse_axis(joint, delta)
-            status_text = "{} {} pulse".format(labels[joint], "FWD" if delta > 0 else "REV")
-        except Exception as exc:
-            status_text = "GPIO error {}".format(exc)
-        status = status_text[:34]
-        return
-    if config.get("live", True):
-        send_current()
-    else:
-        status = "{} -> {}".format(labels[joint], manual[joint])
+    try:
+        pulse_axis(joint, delta)
+        status_text = "{} {}".format(labels[joint], "FWD" if delta > 0 else "REV")
+    except Exception as exc:
+        status_text = "Pin error {}".format(exc)
+    status = status_text[:34]
 
 
 def loop():
-    global screen, cursor, pose_index, joint, status
+    global screen, cursor, joint, status
     load_config()
     draw()
     while True:
@@ -463,24 +486,20 @@ def loop():
                     screen = 1
                     status = "Manual"
                 elif cursor == 1:
+                    launch_web()
+                elif cursor == 2:
                     screen = 2
                     status = "Pins"
-                elif cursor == 2:
-                    screen = 3
-                    cursor = 0
-                    status = "Config"
                 elif cursor == 3:
                     save_config()
             elif key == "1":
                 screen = 1
                 status = "Manual"
             elif key == "2":
+                launch_web()
+            elif key == "3":
                 screen = 2
                 status = "Pins"
-            elif key == "3" or key == "connection":
-                screen = 3
-                cursor = 0
-                status = "Config"
             elif key == "4" or key == "send":
                 save_config()
         elif screen == 1:
@@ -506,34 +525,14 @@ def loop():
                 status = "Axis {}".format(labels[joint])
             elif key == "home":
                 manual[:] = [90, 90, 90, 90]
-                if config["mode"] == "gpio":
-                    stop_gpio()
-                    status = "GPIO outputs stopped"
-                else:
-                    send_current()
-            elif key == "live":
-                config["live"] = not config.get("live", True)
-                status = "Live {}".format("on" if config["live"] else "off")
+                stop_gpio()
+                status = "Outputs stopped"
             elif key in ("enter", "send"):
                 send_current()
         elif screen == 2:
             if key == "esc":
                 screen = 0
                 cursor = 1
-        elif screen == 3:
-            if key == "esc":
-                screen = 0
-                cursor = 2
-            elif key == "left":
-                cursor = (cursor - 1) % 6
-            elif key == "right":
-                cursor = (cursor + 1) % 6
-            elif key == "up":
-                edit_setting(1)
-            elif key == "down":
-                edit_setting(-1)
-            elif key == "enter":
-                save_config()
         else:
             if key == "esc":
                 screen = 0

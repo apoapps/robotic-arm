@@ -10,7 +10,6 @@ Firmware source:
 Robot app:
 
 - copy `robotarm.py` to SD path `/py_scripts/robotarm.py`
-- copy `robotweb.py` to SD path `/py_scripts/robotweb.py`
 - patch `/modules/py_run.py` so both `find_py_files` and `run_script` use `/sd/py_scripts`
 - it appears in the LofiFren PicoCalc script menu as `robotarm`
 - USB update helper: `tools/update_lofifren_app_usb.sh`
@@ -19,12 +18,14 @@ The app provides:
 
 - preset poses
 - manual EE/q1/q2/q3 control
-- host, port, movement time, and step settings
+- direct H-bridge GPIO pulses
+- pulse time and step settings
 - saved config at `/sd/robotarm.json`
 
-Web AP app:
+Web option:
 
-- open `robotweb` from the PicoCalc script menu
+- open `robotarm` from the PicoCalc script menu
+- choose `Web`
 - connect Safari device to Wi-Fi `PICOCALC_ROBOT`
 - password: `robot12345`
 - open `http://192.168.4.1`
