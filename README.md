@@ -12,7 +12,7 @@ Este entregable organiza el firmware del controlador del brazo robotico, la app 
 ## Estructura
 
 - `firmware/robot-arm-platformio/`: firmware C++/Arduino para Raspberry Pi Pico W con PlatformIO.
-- `picoware/apps/robot_arm_remote.py`: app MicroPython para controlar el brazo desde PicoCalc/Picoware.
+- `picoware/apps/robotarm.py`: app MicroPython para controlar el brazo desde PicoCalc/Picoware.
 - `tools/`: scripts de instalacion, carga y prueba desde la computadora.
 - `docs/INFORME_TECNICO.md`: reporte tecnico detallado.
 - `docs/CABLEADO.md`: guia rapida de cableado.
@@ -41,10 +41,10 @@ Este entregable organiza el firmware del controlador del brazo robotico, la app 
    pio device monitor -b 115200
    ```
 
-4. Copia la app `picoware/apps/robot_arm_remote.py` a la SD del PicoCalc:
+4. Copia la app `picoware/apps/robotarm.py` a la SD del PicoCalc:
 
    ```text
-   /picoware/apps/robot_arm_remote.py
+   /picoware/apps/robotarm.py
    ```
 
    Tambien puedes usar:
@@ -59,7 +59,7 @@ Este entregable organiza el firmware del controlador del brazo robotico, la app 
    ./tools/update_picoware_app_usb.sh
    ```
 
-   Esto copia la app a `/picoware/apps/robot_arm_remote.py` usando `mpremote`. Si tu instalacion de Picoware solo descubre apps desde la SD y no expone esa ruta por USB, usa la copia en flash interna como launcher o instala Picoware con dashboard/USB file manager.
+   Esto copia la app a `/picoware/apps/robotarm.py` usando `mpremote`.
 
    La app tambien trae la opcion `u - Actualizar app`, que descarga la version mas reciente desde este repo por Wi-Fi.
 
@@ -79,7 +79,7 @@ y copia las apps a:
 /picoware/apps/
 ```
 
-La SD local `NO NAME` ya fue preparada con Picoware `v1.8.4` y `robot_arm_remote.py`. En el PicoCalc, usa el menu de firmware desde SD y selecciona el UF2 correcto para tu placa. Detalles en `docs/PICOWARE.md`.
+La SD local `NO NAME` ya fue preparada con Picoware `v1.8.4` y `robotarm.py`. En el PicoCalc, usa el menu de firmware desde SD y selecciona el UF2 correcto para tu placa. Detalles en `docs/PICOWARE.md`.
 
 ## Prueba rapida
 

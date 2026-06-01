@@ -16,7 +16,7 @@ Construir un brazo robotico educativo controlado por un Raspberry Pi Pico W y op
 El proyecto se divide en dos dispositivos:
 
 1. Controlador del brazo: Raspberry Pi Pico W con firmware C++/Arduino en PlatformIO. Controla un PCA9685 por I2C y expone un servidor TCP por Wi-Fi.
-2. Control remoto: PicoCalc con Picoware/MicroPython. Ejecuta `robot_arm_remote.py`, abre una conexion TCP al Pico W y envia posiciones.
+2. Control remoto: PicoCalc con Picoware/MicroPython. Ejecuta `robotarm.py`, abre una conexion TCP al Pico W y envia posiciones.
 
 El protocolo de control es texto plano:
 
@@ -44,7 +44,7 @@ La configuracion local de Wi-Fi va en `include/config.h`, creado desde `include/
 
 ## App PicoCalc/Picoware
 
-La app esta en `picoware/apps/robot_arm_remote.py`. Esta pensada para ejecutarse desde Picoware y usa solo modulos estandar de MicroPython: `socket` y `time`.
+La app esta en `picoware/apps/robotarm.py`. Esta pensada para ejecutarse desde Picoware y usa solo modulos estandar de MicroPython: `socket` y `time`.
 
 Funciones:
 
@@ -73,24 +73,18 @@ Este script instala:
 Segun la guia actual de Picoware, para PicoCalc se debe actualizar primero el firmware del teclado si aplica, flashear el UF2 correspondiente y copiar la carpeta `apps` de `builds/MicroPython` a `/picoware` en la SD. Para este proyecto, copia tambien:
 
 ```text
-picoware/apps/robot_arm_remote.py -> SD:/picoware/apps/robot_arm_remote.py
+picoware/apps/robotarm.py -> SD:/picoware/apps/robotarm.py
 ```
 
 ## Actualizacion de la app sin sacar la SD
 
-La primera ruta es usar la opcion `u - Actualizar app` dentro de la app de PicoCalc. Esta descarga `robot_arm_remote.py` desde:
-
-```text
-https://raw.githubusercontent.com/apoapps/robotic-arm/main/picoware/apps/robot_arm_remote.py
-```
-
-La segunda ruta es USB con `mpremote`:
+La ruta directa es USB con `mpremote`:
 
 ```sh
 ./tools/update_picoware_app_usb.sh
 ```
 
-El script crea `/picoware/apps` si falta y copia `robot_arm_remote.py` al dispositivo. Esto funciona cuando Picoware/MicroPython expone esa ruta en el filesystem del PicoCalc. Si la app se ejecuta exclusivamente desde la SD y esa SD no queda montada en MicroPython, la alternativa practica es mantener una copia lanzadora en flash interna que importe o ejecute la version actualizada, o usar el dashboard/administrador de archivos USB de la distribucion MicroPython instalada.
+El script crea `/picoware/apps` si falta y copia `robotarm.py` al dispositivo. Esto funciona cuando Picoware/MicroPython expone esa ruta en el filesystem del PicoCalc.
 
 ## Red
 

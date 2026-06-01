@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
-APP_FILE="$(CDPATH= cd -- "$(dirname -- "$0")/../picoware/apps" && pwd)/robot_arm_remote.py"
+APP_FILE="$(CDPATH= cd -- "$(dirname -- "$0")/../picoware/apps" && pwd)/robotarm.py"
 
-REMOTE_PATH="${1:-:/picoware/apps/robot_arm_remote.py}"
+REMOTE_PATH="${1:-:/picoware/apps/robotarm.py}"
 
 echo "Updating Picoware app over USB with mpremote."
 echo "Source: $APP_FILE"

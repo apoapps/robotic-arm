@@ -41,7 +41,7 @@ For the local SD card named `NO NAME`, the following files were copied:
 /firmware/UF2/Picoware-PicoCalcPicoW.uf2
 /firmware/UF2/Picoware-PicoCalcPico2.uf2
 /firmware/UF2/Picoware-PicoCalcPico2W.uf2
-/picoware/apps/robot_arm_remote.py
+/picoware/apps/robotarm.py
 ```
 
 The official Picoware MicroPython `apps` folder from `v1.8.4` was also copied to:
@@ -63,7 +63,7 @@ Do not select a Pico 2/Pico 2 W UF2 on an original Pico/Pico W, or the reverse.
 
 Preferred options:
 
-1. From PicoCalc app menu, press `u` to download the latest `robot_arm_remote.py` from this repository over Wi-Fi.
+1. Copy `robotarm.py` or `robotarm.mpy` into `/picoware/apps`.
 2. From the computer, connect PicoCalc by USB and run:
 
    ```sh
