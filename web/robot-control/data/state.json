@@ -1,0 +1,16 @@
+{
+  "mode": "gpio",
+  "host": "192.168.4.1",
+  "port": 7777,
+  "move_ms": 250,
+  "step": 5,
+  "live": true,
+  "manual": [
+    90,
+    95,
+    90,
+    90
+  ],
+  "selectedAxis": 1,
+  "lastCommand": "Ready"
+}
