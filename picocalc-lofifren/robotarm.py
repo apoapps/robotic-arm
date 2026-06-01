@@ -282,12 +282,12 @@ def web_html():
 </section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i])
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Robot</title><style>
-*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#fff;color:#000}
-body{border:4px solid #000}header,footer{padding:12px;border-bottom:4px solid #000}footer{border-top:4px solid #000;border-bottom:0}
-main{padding:12px}.title{font-size:24px;font-weight:900;text-transform:uppercase}.team{font-size:12px;text-transform:uppercase}
-button,input{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit}button{padding:12px;font-weight:900}
-.grid{display:grid;gap:10px}.axis{border:2px solid #000;padding:10px;display:grid;gap:8px}.selected{background:#000;color:#fff}
-.moves{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.stop{grid-column:1/3}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+*{{box-sizing:border-box}}html,body{{margin:0;height:100%;font-family:Arial,sans-serif;background:#fff;color:#000}}
+body{{border:4px solid #000}}header,footer{{padding:12px;border-bottom:4px solid #000}}footer{{border-top:4px solid #000;border-bottom:0}}
+main{{padding:12px}}.title{{font-size:24px;font-weight:900;text-transform:uppercase}}.team{{font-size:12px;text-transform:uppercase}}
+button,input{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit}}button{{padding:12px;font-weight:900}}
+.grid{{display:grid;gap:10px}}.axis{{border:2px solid #000;padding:10px;display:grid;gap:8px}}.selected{{background:#000;color:#fff}}
+.moves{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}}.stop{{grid-column:1/3}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}}
 </style></head><body>
 <header><div class="title">Proyecto final Robotica</div><div class="team">Apodaca, Calderon, Soriano, Ochoa</div></header>
 <main><div class="meta"><div>Axis <b>{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b>{status}</b></div>
