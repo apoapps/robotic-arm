@@ -2,7 +2,7 @@ import gc
 import json
 import socket
 import time
-from machine import Pin
+from machine import Pin, PWM
 
 import network
 import picocalc
@@ -26,22 +26,24 @@ config = {
 }
 
 gpio_pairs = (
-    (2, 3),    # EE
     (4, 5),    # Q1
     (21, 28),  # Q2
     (8, 9),    # Q3
 )
+GRIPPER_SERVO_PIN = 2
 
-labels = ("EE", "Q1", "Q2", "Q3")
-axis_names = ("Grip", "Base", "Shoulder", "Elbow")
+labels = ("GRIP", "BASE", "SHLD", "ELBW")
+axis_names = ("Gripper", "Base motor", "Shoulder motor", "Elbow motor")
 manual = [90, 90, 90, 90]
 joint = 0
 status = "Starting"
 key_buf = bytearray(16)
 gpio_pins = None
+gripper_pwm = None
 web_socket = None
 web_ip = "192.168.4.1"
 web_port = 80
+last_draw_state = None
 
 
 def wr(text):
@@ -73,13 +75,10 @@ def clamp(value, low, high):
     return min(max(value, low), high)
 
 
-def bar(value, active=False):
-    width = 20
-    filled = int((clamp(value, 0, 180) * width) / 180)
-    if active:
-        style("30;47;1")
-    wr("[{}{}]".format("=" * filled, " " * (width - filled)))
-    reset_style()
+def action_words(axis, direction):
+    if axis == 0:
+        return "Open" if direction > 0 else "Close"
+    return "Forward" if direction > 0 else "Back"
 
 
 def load_config():
@@ -112,9 +111,11 @@ def save_config():
 
 
 def init_gpio():
-    global gpio_pins
+    global gpio_pins, gripper_pwm
     if gpio_pins is not None:
         return
+    gripper_pwm = PWM(Pin(GRIPPER_SERVO_PIN))
+    gripper_pwm.freq(50)
     gpio_pins = []
     for a, b in gpio_pairs:
         gpio_pins.append((Pin(a, Pin.OUT, value=0), Pin(b, Pin.OUT, value=0)))
@@ -127,9 +128,20 @@ def stop_gpio():
         p2.value(0)
 
 
+def set_gripper(angle):
+    init_gpio()
+    angle = clamp(int(angle), 0, 180)
+    duty_ns = 500000 + int((angle * 2000000) / 180)
+    gripper_pwm.duty_ns(duty_ns)
+
+
 def pulse_axis(axis, direction):
     init_gpio()
-    p1, p2 = gpio_pins[axis]
+    if axis == 0:
+        set_gripper(manual[0])
+        time.sleep_ms(80)
+        return
+    p1, p2 = gpio_pins[axis - 1]
     p1.value(1 if direction > 0 else 0)
     p2.value(0 if direction > 0 else 1)
     time.sleep_ms(int(config["move_ms"]))
@@ -143,7 +155,12 @@ def web_url():
     return "http://{}:{}".format(web_ip, web_port)
 
 
-def draw():
+def draw(force=False):
+    global last_draw_state
+    state = (joint, manual[0], manual[1], manual[2], manual[3], status, web_port, web_ip)
+    if not force and state == last_draw_state:
+        return
+    last_draw_state = state
     clear()
     style("37;1")
     wr("+" + "-" * (W - 2) + "+")
@@ -173,13 +190,15 @@ def draw():
             wr(">")
         else:
             wr(" ")
-        wr(" {} {:>3} ".format(label, manual[i]))
+        wr(" {} {:<14} {:>3} ".format(label, axis_names[i], manual[i]))
         reset_style()
-        bar(manual[i], i == joint)
-        wr(" {}\n".format(axis_names[i]))
+        if i == 0:
+            wr("   Close / Open\n")
+        else:
+            wr("   Back / Forward\n")
     wr("\n")
-    wr("UP/DOWN axis  LEFT/RIGHT pulse  1-4 axis  S stop\n")
-    wr("Q exits\n")
+    wr("UP/DOWN select   LEFT Back/Close   RIGHT Forward/Open\n")
+    wr("1-4 direct       S stop            Q exit\n")
     style("37;1")
     wr("STATUS ")
     reset_style()
@@ -274,12 +293,14 @@ def web_html():
     rows = ""
     for i in range(4):
         active = " selected" if i == joint else ""
+        neg = action_words(i, -1)
+        pos = action_words(i, 1)
         rows += """
 <section id="axis{i}" class="axis{active}">
 <button onclick="setAxis({i})">{label}</button>
 <span>{name}</span><strong id="v{i}">{value}</strong>
-<input id="r{i}" type="range" min="0" max="180" value="{value}" oninput="previewVal({i},this.value)" onchange="setVal({i},this.value)">
-</section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i])
+<div class="pair"><button onclick="moveAxis({i},-1)">{neg}</button><button onclick="moveAxis({i},1)">{pos}</button></div>
+</section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i], neg=neg, pos=pos)
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Robot</title><style>
 *{{box-sizing:border-box}}html,body{{margin:0;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#fff;color:#000}}
@@ -287,35 +308,38 @@ body{{height:100dvh;border:4px solid #000;display:grid;grid-template-rows:auto 1
 header,footer{{padding:12px;border-bottom:4px solid #000}}footer{{border-top:4px solid #000;border-bottom:0}}
 main{{min-height:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}}
 .title{{font-size:22px;font-weight:900;text-transform:uppercase}}.team{{margin:8px 0 0 18px;padding:0;font-size:13px}}
-button,input{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit}}button{{padding:12px;font-weight:900}}
+button{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit;padding:12px;font-weight:900}}
 .grid{{display:grid;gap:10px}}.axis{{border:2px solid #000;padding:10px;display:grid;gap:8px}}.selected{{background:#000;color:#fff}}
-.moves{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}}.stop{{grid-column:1/3}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}}
+.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}}.stop{{grid-column:1/3}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}}
 </style></head><body>
 <header><div class="title">Proyecto final Robotica</div><ul class="team">{team}</ul></header>
-<main><div class="meta"><div>Axis <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
-<div class="moves"><button onclick="move(-1)">Reverse</button><button onclick="move(1)">Forward</button><button class="stop" onclick="stopAll()">Stop</button></div>
-<div class="grid">{rows}</div></main><footer>EE 2/3 | Q1 4/5 | Q2 21/28 | Q3 8/9</footer>
+<main><div class="meta"><div>Selected <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
+<div class="moves"><button id="leftBtn" onclick="move(-1)">{left}</button><button id="rightBtn" onclick="move(1)">{right}</button><button class="stop" onclick="stopAll()">Stop</button></div>
+<div class="grid">{rows}</div></main><footer>Grip servo GP2 | Base 4/5 | Shoulder 21/28 | Elbow 8/9</footer>
 <script>
 let busy=false,pending=null;
 function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
 function setAxis(i){{api('/cmd?a=axis&i='+i)}}
-function previewVal(i,v){{document.getElementById('v'+i).textContent=v}}
-function setVal(i,v){{document.getElementById('v'+i).textContent=v;api('/cmd?a=set&i='+i+'&v='+v)}}
 function move(d){{api('/cmd?a=move&d='+d)}}
+function moveAxis(i,d){{api('/cmd?a=move&i='+i+'&d='+d)}}
 function stopAll(){{api('/cmd?a=stop')}}
-function update(s){{document.getElementById('axisName').textContent=s.labels[s.joint];document.getElementById('status').textContent=s.status;for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('r'+i).value=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
+function update(s){{document.getElementById('axisName').textContent=s.names[s.joint];document.getElementById('status').textContent=s.status;document.getElementById('leftBtn').textContent=s.joint===0?'Close':'Back';document.getElementById('rightBtn').textContent=s.joint===0?'Open':'Forward';for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
 setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},2000);
 </script>
-</body></html>""".format(team=team_html(), axis=labels[joint], pulse=config["move_ms"], status=status, rows=rows)
+</body></html>""".format(team=team_html(), axis=axis_names[joint], pulse=config["move_ms"], status=status, rows=rows, left=action_words(joint, -1), right=action_words(joint, 1))
 
 
 def json_state():
-    return '{{"joint":{},"labels":["{}","{}","{}","{}"],"manual":[{},{},{},{}],"status":"{}"}}'.format(
+    return '{{"joint":{},"labels":["{}","{}","{}","{}"],"names":["{}","{}","{}","{}"],"manual":[{},{},{},{}],"status":"{}"}}'.format(
         joint,
         labels[0],
         labels[1],
         labels[2],
         labels[3],
+        axis_names[0],
+        axis_names[1],
+        axis_names[2],
+        axis_names[3],
         manual[0],
         manual[1],
         manual[2],
@@ -339,12 +363,14 @@ def query_int(path, name, default):
         return default
 
 
-def adjust_manual(delta):
-    global status
+def adjust_manual(delta, axis=None):
+    global status, joint
+    if axis is not None:
+        joint = clamp(axis, 0, 3)
     manual[joint] = clamp(manual[joint] + (delta * int(config["step"])), 0, 180)
     try:
         pulse_axis(joint, delta)
-        status = "{} {}".format(labels[joint], "FWD" if delta > 0 else "REV")
+        status = "{} {}".format(axis_names[joint], action_words(joint, delta))
     except Exception as exc:
         status = "Pin error {}".format(exc)[:34]
     save_config()
@@ -364,7 +390,7 @@ def handle_web(path):
             status = "{} {}".format(labels[i], manual[i])
             save_config()
         elif action == "move":
-            adjust_manual(1 if query_int(path, "d", 1) >= 0 else -1)
+            adjust_manual(1 if query_int(path, "d", 1) >= 0 else -1, query_int(path, "i", joint))
         elif action == "stop":
             stop_gpio()
             status = "Outputs stopped"
