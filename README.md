@@ -65,6 +65,22 @@ Este entregable organiza el firmware del controlador del brazo robotico, la app 
 
 5. Enciende el controlador del brazo, anota la IP que imprime por serial y pon esa IP en la app del PicoCalc.
 
+## Sin cable microUSB
+
+Si no tienes microUSB para poner el PicoCalc en BOOTSEL desde la computadora, puedes preparar la SD. Copia los UF2 de Picoware a:
+
+```text
+/firmware/UF2/
+```
+
+y copia las apps a:
+
+```text
+/picoware/apps/
+```
+
+La SD local `NO NAME` ya fue preparada con Picoware `v1.8.4` y `robot_arm_remote.py`. En el PicoCalc, usa el menu de firmware desde SD y selecciona el UF2 correcto para tu placa. Detalles en `docs/PICOWARE.md`.
+
 ## Prueba rapida
 
 Desde la computadora, con el Pico W conectado por USB:

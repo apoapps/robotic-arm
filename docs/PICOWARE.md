@@ -24,6 +24,41 @@ The script downloads the latest release from `jblanked/Picoware` and refuses to 
 
 Latest checked upstream during setup: Picoware `v1.8.4`, published May 30, 2026.
 
+## Flash from SD without microUSB
+
+The PicoCalc SD can also hold UF2 firmware files under:
+
+```text
+/firmware/UF2/
+```
+
+If the PicoCalc already has the Clockwork Pi/PicoCalc UF2 bootloader installed, use the on-device firmware menu to select one of these files from the SD. This is the method shown in JBlanked's video "No PC Needed: Flash Your PicoCalc with UF2 Files from SD Card!".
+
+For the local SD card named `NO NAME`, the following files were copied:
+
+```text
+/firmware/UF2/Picoware-PicoCalcPico.uf2
+/firmware/UF2/Picoware-PicoCalcPicoW.uf2
+/firmware/UF2/Picoware-PicoCalcPico2.uf2
+/firmware/UF2/Picoware-PicoCalcPico2W.uf2
+/picoware/apps/robot_arm_remote.py
+```
+
+The official Picoware MicroPython `apps` folder from `v1.8.4` was also copied to:
+
+```text
+/picoware/apps/
+```
+
+Use the UF2 that matches the board installed in the PicoCalc:
+
+- Pico without Wi-Fi: `Picoware-PicoCalcPico.uf2`
+- Pico W: `Picoware-PicoCalcPicoW.uf2`
+- Pico 2: `Picoware-PicoCalcPico2.uf2`
+- Pico 2 W: `Picoware-PicoCalcPico2W.uf2`
+
+Do not select a Pico 2/Pico 2 W UF2 on an original Pico/Pico W, or the reverse.
+
 ## Update app without removing the SD
 
 Preferred options:
