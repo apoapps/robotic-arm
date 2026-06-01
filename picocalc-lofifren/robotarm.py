@@ -15,6 +15,7 @@ config = {
     "port": 7777,
     "move_ms": 900,
     "step": 5,
+    "live": True,
 }
 
 poses = [
@@ -33,6 +34,8 @@ joint = 0
 manual = [90, 90, 90, 90]
 status = "Ready"
 key_buf = bytearray(16)
+labels = ("EE", "Q1", "Q2", "Q3")
+axis_names = ("End effector", "Base", "Shoulder", "Elbow")
 
 
 def wr(text):
@@ -75,6 +78,33 @@ def line(text, selected=False):
     else:
         wr("   {}".format(text[: W - 4]))
     wr("\n")
+
+
+def pill(text, fg=WHITE, bg=BLUE):
+    style(fg=fg, bg=bg, bold=True)
+    wr(" {} ".format(text[:16]))
+    reset_style()
+
+
+def field(label, value, width=15):
+    style(fg=CYAN, bold=True)
+    wr("{:<8}".format(label))
+    reset_style()
+    wr("{:<{}}\n".format(str(value)[:width], width))
+
+
+def bar(value, selected=False):
+    width = 24
+    filled = int((clamp(value, 0, 180) * width) / 180)
+    if selected:
+        style(fg=BLACK, bg=GREEN, bold=True)
+    else:
+        style(fg=GREEN)
+    wr("[")
+    wr("#" * filled)
+    wr("-" * (width - filled))
+    wr("]")
+    reset_style()
 
 
 def clamp(value, low, high):
@@ -137,6 +167,8 @@ def draw_header(title):
     wr(" " * W)
     at(1, 3)
     wr(title)
+    at(1, W - 15)
+    wr("Yamel Robot")
     reset_style()
     at(2, 1)
     style(fg=CYAN)
@@ -147,27 +179,49 @@ def draw_header(title):
 
 def draw_home():
     name, angles = poses[pose_index]
-    draw_header("Robot Arm")
-    line("Pose: {}".format(name), cursor == 0)
-    wr("   EE {} q1 {} q2 {} q3 {}\n\n".format(*angles))
-    line("Manual joints", cursor == 1)
-    line("Settings", cursor == 2)
+    draw_header("Robot Arm Control")
+    pill("PRESET", BLACK, GREEN if cursor == 0 else BLUE)
+    wr("  {} ({}/{})\n".format(name, pose_index + 1, len(poses)))
+    wr("   ")
+    for idx, label in enumerate(labels):
+        wr("{}:{}  ".format(label, angles[idx]))
+    wr("\n\n")
+    line("Manual axis control", cursor == 1)
+    line("Connection/settings", cursor == 2)
     line("Save config", cursor == 3)
     wr("\n")
+    field("Target", "{}:{}".format(config["host"], config["port"]), 30)
+    field("Move", "{} ms   step {}".format(config["move_ms"], config["step"]), 30)
     style(dim=True)
-    wr("Arrows move/select  Enter send/open  Esc exit\n")
+    wr("< > preset   Enter send/open   M manual   S save\n")
+    wr("Esc exits to menu\n")
     reset_style()
     wr(status)
 
 
 def draw_manual():
-    labels = ("EE", "q1", "q2", "q3")
-    draw_header("Manual")
+    draw_header("Manual Axis Control")
+    style(dim=True)
+    wr("Axis: ")
+    reset_style()
+    pill("{} {}".format(labels[joint], axis_names[joint]), BLACK, GREEN)
+    wr("  ")
+    pill("LIVE {}".format("ON" if config.get("live", True) else "OFF"), BLACK, YELLOW)
+    wr("\n\n")
     for idx, label in enumerate(labels):
-        line("{}: {}".format(label, manual[idx]), joint == idx)
+        if joint == idx:
+            style(fg=GREEN, bold=True)
+            wr(">")
+        else:
+            wr(" ")
+        reset_style()
+        wr(" {} {:>3} ".format(label, manual[idx]))
+        bar(manual[idx], joint == idx)
+        wr("  {}\n".format(axis_names[idx]))
     wr("\n")
     style(dim=True)
-    wr("Left/Right joint  Up/Down +/-{}  Enter send\nEsc home\n".format(config["step"]))
+    wr("1-4 axis  Up/Down axis  Left/Right angle +/-{}\n".format(config["step"]))
+    wr("+/- angle  S/Enter send  L live  H neutral  Esc home\n")
     reset_style()
     wr(status)
 
@@ -179,6 +233,7 @@ def draw_settings():
         "Port {}".format(config["port"]),
         "Move ms {}".format(config["move_ms"]),
         "Step {}".format(config["step"]),
+        "Live {}".format("on" if config.get("live", True) else "off"),
     ]
     for idx, row in enumerate(rows):
         line(row, cursor == idx)
@@ -215,6 +270,20 @@ def read_key():
         return "right"
     if data.endswith(b"[D"):
         return "left"
+    if data in (b"+", b"="):
+        return "plus"
+    if data in (b"-", b"_"):
+        return "minus"
+    if data in (b"s", b"S"):
+        return "send"
+    if data in (b"m", b"M"):
+        return "manual"
+    if data in (b"l", b"L"):
+        return "live"
+    if data in (b"h", b"H"):
+        return "home"
+    if data in (b"1", b"2", b"3", b"4"):
+        return data.decode()
     return None
 
 
@@ -230,8 +299,27 @@ def edit_setting(delta):
         config["port"] = clamp(int(config["port"]) + delta, 1, 65535)
     elif cursor == 2:
         config["move_ms"] = clamp(int(config["move_ms"]) + delta * 100, 100, 5000)
-    else:
+    elif cursor == 3:
         config["step"] = clamp(int(config["step"]) + delta, 1, 30)
+    else:
+        config["live"] = not config.get("live", True)
+
+
+def send_current():
+    global status
+    try:
+        status = send_pose(manual)
+    except Exception as exc:
+        status = "Send error {}".format(exc)[:34]
+
+
+def adjust_manual(delta):
+    manual[joint] = clamp(manual[joint] + (delta * int(config["step"])), 0, 180)
+    if config.get("live", True):
+        send_current()
+    else:
+        global status
+        status = "{} -> {}".format(labels[joint], manual[joint])
 
 
 def loop():
@@ -271,31 +359,46 @@ def loop():
                     status = "Settings"
                 else:
                     save_config()
+            elif key == "manual":
+                screen = 1
+                status = "Manual"
+            elif key == "send":
+                save_config()
         elif screen == 1:
             if key == "esc":
                 screen = 0
                 cursor = 1
             elif key == "left":
-                joint = (joint - 1) % 4
+                adjust_manual(-1)
             elif key == "right":
-                joint = (joint + 1) % 4
+                adjust_manual(1)
             elif key == "up":
-                manual[joint] = clamp(manual[joint] + int(config["step"]), 0, 180)
+                joint = (joint - 1) % 4
             elif key == "down":
-                manual[joint] = clamp(manual[joint] - int(config["step"]), 0, 180)
-            elif key == "enter":
-                try:
-                    status = send_pose(manual)
-                except Exception as exc:
-                    status = "Send error {}".format(exc)[:34]
+                joint = (joint + 1) % 4
+            elif key == "plus":
+                adjust_manual(1)
+            elif key == "minus":
+                adjust_manual(-1)
+            elif key in ("1", "2", "3", "4"):
+                joint = int(key) - 1
+                status = "Axis {}".format(labels[joint])
+            elif key == "home":
+                manual[:] = [90, 90, 90, 90]
+                send_current()
+            elif key == "live":
+                config["live"] = not config.get("live", True)
+                status = "Live {}".format("on" if config["live"] else "off")
+            elif key in ("enter", "send"):
+                send_current()
         else:
             if key == "esc":
                 screen = 0
                 cursor = 2
             elif key == "left":
-                cursor = (cursor - 1) % 4
+                cursor = (cursor - 1) % 5
             elif key == "right":
-                cursor = (cursor + 1) % 4
+                cursor = (cursor + 1) % 5
             elif key == "up":
                 edit_setting(1)
             elif key == "down":
@@ -312,4 +415,4 @@ def main_menu():
         gc.collect()
 
 
-main_menu()
+main_executed = False
