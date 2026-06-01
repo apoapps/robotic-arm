@@ -263,7 +263,7 @@ def draw_web(ip):
     draw_header("Web")
     field("SSID", AP_SSID, 35)
     field("PASS", AP_PASSWORD, 35)
-    field("URL", "http://{}".format(ip), 35)
+    field("URL", web_url(ip), 35)
     wr("\n")
     nav_hint("Safari -> Wi-Fi -> URL")
     nav_hint("Q / Back exits")
@@ -330,15 +330,41 @@ def handle_web(path):
         status = "Outputs stopped"
 
 
+def web_url(ip):
+    if web_port == 80:
+        return "http://{}".format(ip)
+    return "http://{}:{}".format(ip, web_port)
+
+
+web_port = 80
+
+
+def bind_web_socket():
+    global web_port
+    last_error = None
+    for port in (80, 8080, 8000):
+        try:
+            s = socket.socket()
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(socket.getaddrinfo("0.0.0.0", port)[0][-1])
+            web_port = port
+            return s
+        except OSError as exc:
+            last_error = exc
+            try:
+                s.close()
+            except Exception:
+                pass
+    raise last_error
+
+
 def serve_web():
     global status
     ap = start_ap()
     ip = ap.ifconfig()[0]
     status = "Web ready"
     draw_web(ip)
-    s = socket.socket()
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(socket.getaddrinfo("0.0.0.0", 80)[0][-1])
+    s = bind_web_socket()
     s.listen(2)
     s.settimeout(0.25)
     while True:
