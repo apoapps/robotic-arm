@@ -34,6 +34,8 @@ GRIPPER_SERVO_PIN = 2
 
 labels = ("GRIP", "BASE", "SHLD", "ELBW")
 axis_names = ("Gripper", "Base motor", "Shoulder motor", "Elbow motor")
+axis_short_names = ("Gripper", "Base", "Shoulder", "Elbow")
+pin_names = ("GP2", "GP4/5", "GP21/28", "GP8/9")
 manual = [90, 90, 90, 90]
 joint = 0
 status = "Starting"
@@ -225,7 +227,7 @@ def draw(force=False):
             wr(">")
         else:
             wr(" ")
-        wr(" {} {:<14} {:>3} ".format(label, axis_names[i], manual[i]))
+        wr("{} {:<7} {:<8} {:>3} ".format(label, pin_names[i], axis_short_names[i], manual[i]))
         reset_style()
         wr("   [{}]  [{}]\n".format(action_label(i, -1), action_label(i, 1)))
     wr("\n")
