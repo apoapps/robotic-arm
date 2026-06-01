@@ -81,6 +81,15 @@ def action_words(axis, direction):
     return "Forward" if direction > 0 else "Back"
 
 
+def action_label(axis, direction, html=False):
+    word = action_words(axis, direction)
+    left = "&larr;" if html else "<-"
+    right = "&rarr;" if html else "->"
+    if direction > 0:
+        return "{} {}".format(word, right)
+    return "{} {}".format(left, word)
+
+
 def load_config():
     global joint, status
     try:
@@ -192,12 +201,9 @@ def draw(force=False):
             wr(" ")
         wr(" {} {:<14} {:>3} ".format(label, axis_names[i], manual[i]))
         reset_style()
-        if i == 0:
-            wr("   Close / Open\n")
-        else:
-            wr("   Back / Forward\n")
+        wr("   [{}]  [{}]\n".format(action_label(i, -1), action_label(i, 1)))
     wr("\n")
-    wr("UP/DOWN select   LEFT Back/Close   RIGHT Forward/Open\n")
+    wr("UP/DOWN axis   LEFT <- Close/Back   RIGHT Open/Forward ->\n")
     wr("1-4 direct       S stop            Q exit\n")
     style("37;1")
     wr("STATUS ")
@@ -293,12 +299,12 @@ def web_html():
     rows = ""
     for i in range(4):
         active = " selected" if i == joint else ""
-        neg = action_words(i, -1)
-        pos = action_words(i, 1)
+        neg = action_label(i, -1, True)
+        pos = action_label(i, 1, True)
         rows += """
 <section id="axis{i}" class="axis{active}">
-<button onclick="setAxis({i})">{label}</button>
-<span>{name}</span><strong id="v{i}">{value}</strong>
+<button class="pick" onclick="setAxis({i})">{label}</button>
+<div><span>{name}</span><strong id="v{i}">{value}</strong></div>
 <div class="pair"><button onclick="moveAxis({i},-1)">{neg}</button><button onclick="moveAxis({i},1)">{pos}</button></div>
 </section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i], neg=neg, pos=pos)
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -308,9 +314,10 @@ body{{height:100dvh;border:4px solid #000;display:grid;grid-template-rows:auto 1
 header,footer{{padding:12px;border-bottom:4px solid #000}}footer{{border-top:4px solid #000;border-bottom:0}}
 main{{min-height:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}}
 .title{{font-size:22px;font-weight:900;text-transform:uppercase}}.team{{margin:8px 0 0 18px;padding:0;font-size:13px}}
-button{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit;padding:12px;font-weight:900}}
-.grid{{display:grid;gap:10px}}.axis{{border:2px solid #000;padding:10px;display:grid;gap:8px}}.selected{{background:#000;color:#fff}}
-.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}}.stop{{grid-column:1/3}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}}
+button{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit;padding:14px 10px;font-weight:900;min-height:48px}}
+.grid{{display:grid;gap:10px}}.axis{{border:2px solid #000;padding:10px;display:grid;grid-template-columns:70px 1fr;gap:8px;align-items:center}}
+.axis .pair{{grid-column:1/3}}.axis strong{{float:right}}.pick{{padding:10px;min-height:44px}}.selected{{background:#000;color:#fff}}.selected button{{border-color:#fff}}
+.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}}.moves button{{font-size:20px;min-height:64px}}.stop{{grid-column:1/3;font-size:16px!important;min-height:48px!important}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}}
 </style></head><body>
 <header><div class="title">Proyecto final Robotica</div><ul class="team">{team}</ul></header>
 <main><div class="meta"><div>Selected <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
@@ -323,10 +330,10 @@ function setAxis(i){{api('/cmd?a=axis&i='+i)}}
 function move(d){{api('/cmd?a=move&d='+d)}}
 function moveAxis(i,d){{api('/cmd?a=move&i='+i+'&d='+d)}}
 function stopAll(){{api('/cmd?a=stop')}}
-function update(s){{document.getElementById('axisName').textContent=s.names[s.joint];document.getElementById('status').textContent=s.status;document.getElementById('leftBtn').textContent=s.joint===0?'Close':'Back';document.getElementById('rightBtn').textContent=s.joint===0?'Open':'Forward';for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
+function update(s){{document.getElementById('axisName').textContent=s.names[s.joint];document.getElementById('status').textContent=s.status;document.getElementById('leftBtn').innerHTML=s.joint===0?'&larr; Close':'&larr; Back';document.getElementById('rightBtn').innerHTML=s.joint===0?'Open &rarr;':'Forward &rarr;';for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
 setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},2000);
 </script>
-</body></html>""".format(team=team_html(), axis=axis_names[joint], pulse=config["move_ms"], status=status, rows=rows, left=action_words(joint, -1), right=action_words(joint, 1))
+</body></html>""".format(team=team_html(), axis=axis_names[joint], pulse=config["move_ms"], status=status, rows=rows, left=action_label(joint, -1, True), right=action_label(joint, 1, True))
 
 
 def json_state():
