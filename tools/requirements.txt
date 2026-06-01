@@ -1,0 +1,3 @@
+platformio>=6.1
+mpremote>=1.24
+pyserial>=3.5
