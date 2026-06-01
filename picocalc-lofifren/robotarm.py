@@ -242,8 +242,8 @@ def bind_web_socket():
             s = socket.socket()
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(socket.getaddrinfo("0.0.0.0", port)[0][-1])
-            s.listen(2)
-            s.settimeout(0.02)
+            s.listen(1)
+            s.settimeout(0.1)
             web_port = port
             return s
         except OSError as exc:
@@ -278,7 +278,7 @@ def web_html():
 <section id="axis{i}" class="axis{active}">
 <button onclick="setAxis({i})">{label}</button>
 <span>{name}</span><strong id="v{i}">{value}</strong>
-<input id="r{i}" type="range" min="0" max="180" value="{value}" oninput="setVal({i},this.value)">
+<input id="r{i}" type="range" min="0" max="180" value="{value}" oninput="previewVal({i},this.value)" onchange="setVal({i},this.value)">
 </section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i])
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Robot</title><style>
@@ -293,17 +293,18 @@ button,input{{border:2px solid #000;border-radius:0;background:#fff;color:#000;f
 </style></head><body>
 <header><div class="title">Proyecto final Robotica</div><ul class="team">{team}</ul></header>
 <main><div class="meta"><div>Axis <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
-<div class="moves"><button ontouchstart="move(-1)" onclick="move(-1)">Reverse</button><button ontouchstart="move(1)" onclick="move(1)">Forward</button><button class="stop" onclick="stopAll()">Stop</button></div>
+<div class="moves"><button onclick="move(-1)">Reverse</button><button onclick="move(1)">Forward</button><button class="stop" onclick="stopAll()">Stop</button></div>
 <div class="grid">{rows}</div></main><footer>EE 2/3 | Q1 4/5 | Q2 21/28 | Q3 8/9</footer>
 <script>
 let busy=false,pending=null;
 function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
 function setAxis(i){{api('/cmd?a=axis&i='+i)}}
+function previewVal(i,v){{document.getElementById('v'+i).textContent=v}}
 function setVal(i,v){{document.getElementById('v'+i).textContent=v;api('/cmd?a=set&i='+i+'&v='+v)}}
 function move(d){{api('/cmd?a=move&d='+d)}}
 function stopAll(){{api('/cmd?a=stop')}}
 function update(s){{document.getElementById('axisName').textContent=s.labels[s.joint];document.getElementById('status').textContent=s.status;for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('r'+i).value=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
-setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},500);
+setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},2000);
 </script>
 </body></html>""".format(team=team_html(), axis=labels[joint], pulse=config["move_ms"], status=status, rows=rows)
 
