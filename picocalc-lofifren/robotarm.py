@@ -329,11 +329,11 @@ def web_html():
 <section id="axis{i}" class="axis{active}">
 <button class="pick" onclick="setAxis({i})">{axis_icon}<span>{label}</span></button>
 <div><span>{name}</span><strong id="v{i}">{value}</strong></div>
-<div class="pair"><button onclick="moveAxis({i},-1)">{neg}</button><button onclick="moveAxis({i},1)">{pos}</button></div>
+<div class="pair"><button onpointerdown="holdAxis({i},-1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{neg}</button><button onpointerdown="holdAxis({i},1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{pos}</button></div>
 </section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i], neg=action_button_label(i, -1), pos=action_button_label(i, 1), axis_icon=axis_icon(i))
-    return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+    return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Robot</title><style>
-*{{box-sizing:border-box}}html,body{{margin:0;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#fff;color:#000}}
+*{{box-sizing:border-box;-webkit-tap-highlight-color:transparent}}html,body{{margin:0;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#fff;color:#000;touch-action:pan-y;overscroll-behavior:none;-webkit-text-size-adjust:100%}}
 body{{height:100dvh;display:grid;grid-template-rows:auto 1fr auto}}
 header,footer{{padding:12px;border-bottom:2px solid #000}}footer{{border-top:2px solid #000;border-bottom:0;font-size:12px}}
 main{{min-height:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}}
@@ -341,23 +341,29 @@ main{{min-height:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}}
 .title{{font-size:18px;font-weight:900;text-transform:uppercase;line-height:1.1}}.sub{{font-size:12px;margin-top:2px}}
 .ion{{width:22px;height:22px;vertical-align:-5px}}details{{position:relative}}summary{{list-style:none;border:2px solid #000;padding:9px;display:flex;gap:6px;align-items:center;font-weight:900}}summary::-webkit-details-marker{{display:none}}
 .team{{position:absolute;right:0;top:44px;z-index:4;width:235px;margin:0;padding:10px 10px 10px 24px;background:#fff;border:2px solid #000;font-size:13px;line-height:1.4}}
-button{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit;padding:14px 10px;font-weight:900;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px}}
+button{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit;padding:14px 10px;font-weight:900;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px;touch-action:none;user-select:none;-webkit-user-select:none}}
+button:active{{background:#000;color:#fff}}
 .grid{{display:grid;gap:10px}}.axis{{border:2px solid #000;padding:10px;display:grid;grid-template-columns:76px 1fr;gap:8px;align-items:center}}
 .axis .pair{{grid-column:1/3}}.axis strong{{float:right}}.pick{{padding:8px;min-height:48px;flex-direction:column;gap:2px;font-size:12px}}.selected{{background:#000;color:#fff}}.selected button{{border-color:#fff}}
-.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}}.moves button{{font-size:18px;min-height:64px}}.stop{{grid-column:1/3;font-size:15px!important;min-height:48px!important}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px;font-size:14px}}
+.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}}.moves button{{font-size:18px;min-height:64px}}.panic{{width:86px;height:86px;border-radius:999px;background:#c00;color:#fff;border:4px solid #000;margin:14px auto 4px;font-size:13px;flex-direction:column}}.panic:active{{background:#900;color:#fff}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px;font-size:14px}}
 </style></head><body>
 <header><div class="brand"><div class="logo">{robot}</div><div><div class="title">Proyecto final Robotica</div><div class="sub">PicoCalc Robot Arm</div></div><details><summary>{people}<span>Team</span>{caret}</summary><ul class="team">{team}</ul></details></div></header>
 <main><div class="meta"><div>Selected <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
-<div class="moves"><button id="leftBtn" onclick="move(-1)">{left}</button><button id="rightBtn" onclick="move(1)">{right}</button><button class="stop" onclick="stopAll()">{stop}<span>Stop</span></button></div>
-<div class="grid">{rows}</div></main><footer>Grip servo GP2 | Base 4/5 | Shoulder 21/28 | Elbow 8/9</footer>
+<div class="moves"><button id="leftBtn" onpointerdown="holdMove(-1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{left}</button><button id="rightBtn" onpointerdown="holdMove(1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{right}</button></div>
+<div class="grid">{rows}</div><button class="panic" onclick="stopAll()">{stop}<span>Stop</span></button></main><footer>Grip servo GP2 | Base 4/5 | Shoulder 21/28 | Elbow 8/9</footer>
 <script>
-let busy=false,pending=null;
+let busy=false,pending=null,holdTimer=null;
 function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
 function setAxis(i){{api('/cmd?a=axis&i='+i)}}
 function move(d){{api('/cmd?a=move&d='+d)}}
 function moveAxis(i,d){{api('/cmd?a=move&i='+i+'&d='+d)}}
-function stopAll(){{api('/cmd?a=stop')}}
+function repeat(p){{api(p);holdTimer=setInterval(()=>api(p),360)}}
+function holdMove(d){{releaseHold(false);repeat('/cmd?a=move&d='+d)}}
+function holdAxis(i,d){{releaseHold(false);repeat('/cmd?a=move&i='+i+'&d='+d)}}
+function releaseHold(sendStop=true){{if(holdTimer){{clearInterval(holdTimer);holdTimer=null}}if(sendStop)api('/cmd?a=stop')}}
+function stopAll(){{releaseHold(false);api('/cmd?a=stop')}}
 function update(s){{document.getElementById('axisName').textContent=s.names[s.joint];document.getElementById('status').textContent=s.status;document.getElementById('leftBtn').innerHTML=s.joint===0?'{back} <span>Close</span>':'{back} <span>Back</span>';document.getElementById('rightBtn').innerHTML=s.joint===0?'<span>Open</span> {forward}':'<span>Forward</span> {forward}';for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
+document.addEventListener('contextmenu',e=>e.preventDefault());
 setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},2000);
 </script>
 </body></html>""".format(team=team_html(), axis=axis_names[joint], pulse=config["move_ms"], status=status, rows=rows, left=action_button_label(joint, -1), right=action_button_label(joint, 1), robot=icon_svg("robot"), people=icon_svg("people"), caret=icon_svg("caret"), stop=icon_svg("stop"), back=icon_svg("back"), forward=icon_svg("forward"))
