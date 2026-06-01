@@ -275,10 +275,10 @@ def web_html():
     for i in range(4):
         active = " selected" if i == joint else ""
         rows += """
-<section class="axis{active}">
+<section id="axis{i}" class="axis{active}">
 <button onclick="setAxis({i})">{label}</button>
-<span>{name}</span><strong>{value}</strong>
-<input type="range" min="0" max="180" value="{value}" onchange="setVal({i},this.value)">
+<span>{name}</span><strong id="v{i}">{value}</strong>
+<input id="r{i}" type="range" min="0" max="180" value="{value}" oninput="setVal({i},this.value)">
 </section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i])
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Robot</title><style>
@@ -292,11 +292,35 @@ button,input{{border:2px solid #000;border-radius:0;background:#fff;color:#000;f
 .moves{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}}.stop{{grid-column:1/3}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}}
 </style></head><body>
 <header><div class="title">Proyecto final Robotica</div><ul class="team">{team}</ul></header>
-<main><div class="meta"><div>Axis <b>{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b>{status}</b></div>
-<div class="moves"><button onclick="move(-1)">Reverse</button><button onclick="move(1)">Forward</button><button class="stop" onclick="stopAll()">Stop</button></div>
+<main><div class="meta"><div>Axis <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
+<div class="moves"><button ontouchstart="move(-1)" onclick="move(-1)">Reverse</button><button ontouchstart="move(1)" onclick="move(1)">Forward</button><button class="stop" onclick="stopAll()">Stop</button></div>
 <div class="grid">{rows}</div></main><footer>EE 2/3 | Q1 4/5 | Q2 21/28 | Q3 8/9</footer>
-<script>function go(p){{fetch(p).then(()=>location.reload())}}function setAxis(i){{go('/axis?i='+i)}}function setVal(i,v){{go('/set?i='+i+'&v='+v)}}function move(d){{go('/move?d='+d)}}function stopAll(){{go('/stop')}}</script>
+<script>
+let busy=false,pending=null;
+function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
+function setAxis(i){{api('/cmd?a=axis&i='+i)}}
+function setVal(i,v){{document.getElementById('v'+i).textContent=v;api('/cmd?a=set&i='+i+'&v='+v)}}
+function move(d){{api('/cmd?a=move&d='+d)}}
+function stopAll(){{api('/cmd?a=stop')}}
+function update(s){{document.getElementById('axisName').textContent=s.labels[s.joint];document.getElementById('status').textContent=s.status;for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('r'+i).value=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
+setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},500);
+</script>
 </body></html>""".format(team=team_html(), axis=labels[joint], pulse=config["move_ms"], status=status, rows=rows)
+
+
+def json_state():
+    return '{{"joint":{},"labels":["{}","{}","{}","{}"],"manual":[{},{},{},{}],"status":"{}"}}'.format(
+        joint,
+        labels[0],
+        labels[1],
+        labels[2],
+        labels[3],
+        manual[0],
+        manual[1],
+        manual[2],
+        manual[3],
+        str(status).replace('"', "'"),
+    )
 
 
 def query_int(path, name, default):
@@ -327,6 +351,25 @@ def adjust_manual(delta):
 
 def handle_web(path):
     global joint, status
+    if path.startswith("/cmd"):
+        action = path_value(path, "a", "")
+        if action == "axis":
+            joint = clamp(query_int(path, "i", joint), 0, 3)
+            status = "Axis {}".format(labels[joint])
+        elif action == "set":
+            i = clamp(query_int(path, "i", joint), 0, 3)
+            manual[i] = clamp(query_int(path, "v", manual[i]), 0, 180)
+            joint = i
+            status = "{} {}".format(labels[i], manual[i])
+            save_config()
+        elif action == "move":
+            adjust_manual(1 if query_int(path, "d", 1) >= 0 else -1)
+        elif action == "stop":
+            stop_gpio()
+            status = "Outputs stopped"
+        return "json", json_state()
+    if path.startswith("/state"):
+        return "json", json_state()
     if path.startswith("/axis"):
         joint = clamp(query_int(path, "i", joint), 0, 3)
         status = "Axis {}".format(labels[joint])
@@ -341,6 +384,19 @@ def handle_web(path):
     elif path.startswith("/stop"):
         stop_gpio()
         status = "Outputs stopped"
+    return "html", web_html()
+
+
+def path_value(path, name, default):
+    token = name + "="
+    pos = path.find(token)
+    if pos < 0:
+        return default
+    pos += len(token)
+    end = path.find("&", pos)
+    if end < 0:
+        end = len(path)
+    return path[pos:end]
 
 
 def poll_web():
@@ -354,9 +410,11 @@ def poll_web():
         req = client.recv(512).decode("utf-8", "ignore")
         first = req.split("\r\n")[0].split(" ")
         path = first[1] if len(first) > 1 else "/"
-        handle_web(path)
-        body = web_html()
-        client.send("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n")
+        kind, body = handle_web(path)
+        if kind == "json":
+            client.send("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n")
+        else:
+            client.send("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n")
         client.send(body)
     except Exception:
         try:
