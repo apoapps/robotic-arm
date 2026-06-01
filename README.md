@@ -16,6 +16,7 @@ Este entregable organiza el firmware del controlador del brazo robotico, la app 
 - `tools/`: scripts de instalacion, carga y prueba desde la computadora.
 - `docs/INFORME_TECNICO.md`: reporte tecnico detallado.
 - `docs/CABLEADO.md`: guia rapida de cableado.
+- `docs/PICOWARE.md`: flasheo seguro y actualizacion sin sacar la SD.
 
 ## Flujo recomendado
 
@@ -59,6 +60,8 @@ Este entregable organiza el firmware del controlador del brazo robotico, la app 
    ```
 
    Esto copia la app a `/picoware/apps/robot_arm_remote.py` usando `mpremote`. Si tu instalacion de Picoware solo descubre apps desde la SD y no expone esa ruta por USB, usa la copia en flash interna como launcher o instala Picoware con dashboard/USB file manager.
+
+   La app tambien trae la opcion `u - Actualizar app`, que descarga la version mas reciente desde este repo por Wi-Fi.
 
 5. Enciende el controlador del brazo, anota la IP que imprime por serial y pon esa IP en la app del PicoCalc.
 

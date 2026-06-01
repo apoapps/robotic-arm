@@ -52,6 +52,7 @@ Funciones:
 - Incluye poses predefinidas.
 - Permite introducir angulos manuales.
 - Envia comandos TCP y muestra la respuesta del controlador.
+- Incluye actualizacion de la app por Wi-Fi desde el repositorio.
 
 ## Instalacion recomendada
 
@@ -77,7 +78,13 @@ picoware/apps/robot_arm_remote.py -> SD:/picoware/apps/robot_arm_remote.py
 
 ## Actualizacion de la app sin sacar la SD
 
-La ruta preferida es USB con `mpremote`:
+La primera ruta es usar la opcion `u - Actualizar app` dentro de la app de PicoCalc. Esta descarga `robot_arm_remote.py` desde:
+
+```text
+https://raw.githubusercontent.com/apoapps/robotic-arm/main/picoware/apps/robot_arm_remote.py
+```
+
+La segunda ruta es USB con `mpremote`:
 
 ```sh
 ./tools/update_picoware_app_usb.sh

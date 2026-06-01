@@ -216,7 +216,7 @@ void receiveSerialData() {
 
 void receiveWifiData() {
   if (!tcpClient || !tcpClient.connected()) {
-    tcpClient = tcpServer.available();
+    tcpClient = tcpServer.accept();
     if (tcpClient) {
       tcpClient.setNoDelay(true);
       tcpClient.println("<HELLO robot-arm>");

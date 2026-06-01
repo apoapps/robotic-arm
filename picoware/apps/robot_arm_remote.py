@@ -3,6 +3,8 @@ import time
 
 DEFAULT_HOST = "192.168.4.1"
 DEFAULT_PORT = 7777
+UPDATE_URL = "https://raw.githubusercontent.com/apoapps/robotic-arm/main/picoware/apps/robot_arm_remote.py"
+APP_PATH = "/picoware/apps/robot_arm_remote.py"
 
 POSES = {
     "1": ("Neutral", [90, 90, 90, 90]),
@@ -69,7 +71,40 @@ def print_menu(current):
         print("{} - {}".format(key, POSES[key][0]))
     print("m - Manual")
     print("h - Home neutral")
+    print("u - Actualizar app")
     print("q - Salir")
+
+
+def self_update():
+    print("Actualizando desde GitHub...")
+    try:
+        import mip
+
+        mip.install(UPDATE_URL, target="/picoware/apps")
+        print("Actualizacion completa. Reinicia la app.")
+        return
+    except Exception as exc:
+        print("mip no pudo actualizar:", exc)
+
+    try:
+        try:
+            import urequests as requests
+        except ImportError:
+            import requests
+
+        response = requests.get(UPDATE_URL)
+        try:
+            if getattr(response, "status_code", 200) != 200:
+                print("HTTP error:", response.status_code)
+                return
+            with open(APP_PATH, "w") as out_file:
+                out_file.write(response.text)
+            print("Actualizacion completa. Reinicia la app.")
+        finally:
+            response.close()
+    except Exception as exc:
+        print("No se pudo actualizar por Wi-Fi:", exc)
+        print("Usa USB: ./tools/update_picoware_app_usb.sh")
 
 
 def main():
@@ -83,6 +118,9 @@ def main():
         choice = input("> ").strip().lower()
         if choice == "q":
             break
+        if choice == "u":
+            self_update()
+            continue
         if choice == "m":
             current = manual_pose(current)
         elif choice == "h":
