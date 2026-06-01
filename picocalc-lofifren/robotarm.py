@@ -35,7 +35,7 @@ status = "Ready"
 key_buf = bytearray(16)
 labels = ("EE", "Q1", "Q2", "Q3")
 axis_names = ("Grip", "Base", "Shoulder", "Elbow")
-menu_items = ("Manual", "Web", "Pins", "Save")
+menu_items = ("Manual", "Web", "Pins")
 
 
 def wr(text):
@@ -220,7 +220,7 @@ def draw_home():
     for idx, item in enumerate(menu_items):
         line("{}. {}".format(idx + 1, item), cursor == idx)
     wr("\n")
-    nav_hint("UP/DOWN  ENTER  1-4  Q")
+    nav_hint("UP/DOWN  ENTER  1-3  Q")
     draw_status()
 
 
@@ -429,8 +429,6 @@ def read_key():
         return "send"
     if data in (b"m", b"M"):
         return "manual"
-    if data in (b"l", b"L"):
-        return "live"
     if data in (b"h", b"H"):
         return "home"
     if data in (b"p", b"P"):
@@ -490,8 +488,6 @@ def loop():
                 elif cursor == 2:
                     screen = 2
                     status = "Pins"
-                elif cursor == 3:
-                    save_config()
             elif key == "1":
                 screen = 1
                 status = "Manual"
@@ -500,8 +496,6 @@ def loop():
             elif key == "3":
                 screen = 2
                 status = "Pins"
-            elif key == "4" or key == "send":
-                save_config()
         elif screen == 1:
             if key == "esc":
                 screen = 0
