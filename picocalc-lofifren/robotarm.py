@@ -350,9 +350,9 @@ def web_html():
         rows += """
 <section id="axis{i}" class="axis{active}">
 <button class="pick" onclick="setAxis({i})">{axis_icon}<span>{label}</span></button>
-<div><span>{name}</span><strong id="v{i}">{value}</strong></div>
+<div><span>{pin}</span><b>{name}</b><strong id="v{i}">{value}</strong></div>
 <div class="pair"><button onpointerdown="holdAxis({i},-1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{neg}</button><button onpointerdown="holdAxis({i},1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{pos}</button></div>
-</section>""".format(active=active, i=i, label=labels[i], name=axis_names[i], value=manual[i], neg=action_button_label(i, -1), pos=action_button_label(i, 1), axis_icon=axis_icon(i))
+</section>""".format(active=active, i=i, label=labels[i], pin=pin_names[i], name=axis_names[i], value=manual[i], neg=action_button_label(i, -1), pos=action_button_label(i, 1), axis_icon=axis_icon(i))
     return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Robot</title><style>
 *{{box-sizing:border-box;-webkit-tap-highlight-color:transparent}}html,body{{margin:0;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#fff;color:#000;touch-action:pan-y;overscroll-behavior:none;-webkit-text-size-adjust:100%}}
@@ -366,25 +366,28 @@ main{{min-height:0;overflow:auto;padding:12px;-webkit-overflow-scrolling:touch}}
 button{{border:2px solid #000;border-radius:0;background:#fff;color:#000;font:inherit;padding:14px 10px;font-weight:900;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px;touch-action:none;user-select:none;-webkit-user-select:none}}
 button:active{{background:#000;color:#fff}}
 .grid{{display:grid;gap:10px}}.axis{{border:2px solid #000;padding:10px;display:grid;grid-template-columns:76px 1fr;gap:8px;align-items:center}}
-.axis .pair{{grid-column:1/3}}.axis strong{{float:right}}.pick{{padding:8px;min-height:48px;flex-direction:column;gap:2px;font-size:12px}}.selected{{background:#000;color:#fff}}.selected button{{border-color:#fff}}
-.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}}.moves button{{font-size:18px;min-height:64px}}.panic{{width:86px;height:86px;border-radius:999px;background:#c00;color:#fff;border:4px solid #000;margin:14px auto 4px;font-size:13px;flex-direction:column}}.panic:active{{background:#900;color:#fff}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px;font-size:14px}}
+.axis .pair{{grid-column:1/3}}.axis strong{{float:right;font-size:20px}}.axis b{{display:block;font-size:15px}}.axis span{{font-size:12px}}.pick{{padding:8px;min-height:48px;flex-direction:column;gap:2px;font-size:12px}}.selected{{background:#000;color:#fff;outline:3px solid #000;outline-offset:2px}}.selected button{{border-color:#fff}}
+.moves,.pair{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}}.moves button{{font-size:18px;min-height:64px}}.hero{{border:3px solid #000;margin:0 0 12px;padding:12px;text-align:center;background:#fff;color:#000}}.hero .small{{font-size:12px;text-transform:uppercase}}.hero .big{{font-size:24px;font-weight:900;margin-top:4px}}.moving{{background:#000;color:#fff}}.moving .big{{font-size:28px}}.activeMove{{background:#000!important;color:#fff!important}}.panic{{width:86px;height:86px;border-radius:999px;background:#c00;color:#fff;border:4px solid #000;margin:14px auto 4px;font-size:13px;flex-direction:column}}.panic:active{{background:#900;color:#fff}}.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px;font-size:14px}}
 </style></head><body>
 <header><div class="brand"><div class="logo">{robot}</div><div><div class="title">Proyecto final Robotica</div><div class="sub">PicoCalc Robot Arm</div></div><details><summary>{people}<span>Team</span>{caret}</summary><ul class="team">{team}</ul></details></div></header>
-<main><div class="meta"><div>Selected <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
+<main><div id="hero" class="hero"><div class="small">Selected</div><div id="heroText" class="big">{axis}</div></div><div class="meta"><div>Axis <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
 <div class="moves"><button id="leftBtn" onpointerdown="holdMove(-1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{left}</button><button id="rightBtn" onpointerdown="holdMove(1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{right}</button></div>
 <div class="grid">{rows}</div><button class="panic" onclick="stopAll()">{stop}<span>Stop</span></button></main><footer>Grip GP2 | Actuator GP3/UART0_RX | Base 4/5 | Shoulder 21/28</footer>
 <script>
-let busy=false,pending=null,holdTimer=null;
+let busy=false,pending=null,holdTimer=null,movingText='';
 function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
 function setAxis(i){{api('/cmd?a=axis&i='+i)}}
 function move(d){{api('/cmd?a=move&d='+d)}}
 function moveAxis(i,d){{api('/cmd?a=move&i='+i+'&d='+d)}}
+function word(j,d){{if(j===0)return d>0?'Open':'Close';return d>0?'Forward':'Back'}}
+function showMove(j,d){{let axis=document.getElementById('axis'+j).getElementsByTagName('b')[0].textContent;movingText=word(j,d)+' '+axis;document.getElementById('hero').className='hero moving';document.getElementById('heroText').textContent=movingText;document.getElementById(d>0?'rightBtn':'leftBtn').className='activeMove'}}
 function repeat(p){{api(p);holdTimer=setInterval(()=>api(p),180)}}
-function holdMove(d){{releaseHold(false);repeat('/cmd?a=move&d='+d)}}
-function holdAxis(i,d){{releaseHold(false);repeat('/cmd?a=move&i='+i+'&d='+d)}}
-function releaseHold(sendStop=true){{if(holdTimer){{clearInterval(holdTimer);holdTimer=null}}if(sendStop)api('/cmd?a=stop')}}
+function holdMove(d){{releaseHold(false);showMove(currentJoint,d);repeat('/cmd?a=move&d='+d)}}
+function holdAxis(i,d){{releaseHold(false);showMove(i,d);repeat('/cmd?a=move&i='+i+'&d='+d)}}
+function releaseHold(sendStop=true){{if(holdTimer){{clearInterval(holdTimer);holdTimer=null}}movingText='';document.getElementById('hero').className='hero';document.getElementById('leftBtn').className='';document.getElementById('rightBtn').className='';if(sendStop)api('/cmd?a=stop')}}
 function stopAll(){{releaseHold(false);api('/cmd?a=stop')}}
-function update(s){{document.getElementById('axisName').textContent=s.names[s.joint];document.getElementById('status').textContent=s.status;document.getElementById('leftBtn').innerHTML=s.joint===0?'{back} <span>Close</span>':'{back} <span>Back</span>';document.getElementById('rightBtn').innerHTML=s.joint===0?'<span>Open</span> {forward}':'<span>Forward</span> {forward}';for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
+let currentJoint=0;
+function update(s){{currentJoint=s.joint;document.getElementById('axisName').textContent=s.names[s.joint];document.getElementById('status').textContent=s.status;if(!movingText)document.getElementById('heroText').textContent=s.names[s.joint];document.getElementById('leftBtn').innerHTML=s.joint===0?'{back} <span>Close</span>':'{back} <span>Back</span>';document.getElementById('rightBtn').innerHTML=s.joint===0?'<span>Open</span> {forward}':'<span>Forward</span> {forward}';for(let i=0;i<4;i++){{document.getElementById('v'+i).textContent=s.manual[i];document.getElementById('axis'+i).className='axis'+(i===s.joint?' selected':'')}}}}
 document.addEventListener('contextmenu',e=>e.preventDefault());
 setInterval(()=>{{if(!busy)fetch('/state').then(r=>r.json()).then(update).catch(()=>0)}},2000);
 </script>
