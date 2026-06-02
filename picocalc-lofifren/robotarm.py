@@ -43,7 +43,7 @@ status = "Starting"
 key_buf = bytearray(16)
 gpio_pins = None
 gripper_pwm = None
-elbow_pwm = None
+elbow_pin = None
 web_socket = None
 web_ip = "192.168.4.1"
 web_port = 80
@@ -82,6 +82,8 @@ def clamp(value, low, high):
 def action_words(axis, direction):
     if axis == 0:
         return "Open" if direction > 0 else "Close"
+    if axis == 3:
+        return "Extend" if direction > 0 else "Stop"
     return "Forward" if direction > 0 else "Back"
 
 
@@ -150,13 +152,12 @@ def save_config():
 
 
 def init_gpio():
-    global gpio_pins, gripper_pwm, elbow_pwm
+    global gpio_pins, gripper_pwm, elbow_pin
     if gpio_pins is not None:
         return
     gripper_pwm = PWM(Pin(GRIPPER_SERVO_PIN))
     gripper_pwm.freq(50)
-    elbow_pwm = PWM(Pin(ELBOW_ACTUATOR_PIN))
-    elbow_pwm.freq(50)
+    elbow_pin = Pin(ELBOW_ACTUATOR_PIN, Pin.OUT, value=0)
     gpio_pins = []
     for a, b in gpio_pairs:
         gpio_pins.append((Pin(a, Pin.OUT, value=0), Pin(b, Pin.OUT, value=0)))
@@ -167,6 +168,7 @@ def stop_gpio():
     for p1, p2 in gpio_pins:
         p1.value(0)
         p2.value(0)
+    elbow_pin.value(0)
 
 
 def set_servo(pwm, angle):
@@ -180,11 +182,6 @@ def set_gripper(angle):
     set_servo(gripper_pwm, angle)
 
 
-def set_elbow_actuator(angle):
-    init_gpio()
-    set_servo(elbow_pwm, angle)
-
-
 def pulse_axis(axis, direction):
     init_gpio()
     if axis == 0:
@@ -192,8 +189,10 @@ def pulse_axis(axis, direction):
         time.sleep_ms(80)
         return
     if axis == 3:
-        set_elbow_actuator(manual[3])
-        time.sleep_ms(80)
+        elbow_pin.value(1 if direction > 0 else 0)
+        if direction > 0:
+            time.sleep_ms(int(config["move_ms"]))
+            elbow_pin.value(0)
         return
     p1, p2 = gpio_pins[axis - 1]
     p1.value(1 if direction > 0 else 0)
@@ -369,7 +368,7 @@ button:active{{background:#000;color:#fff}}
 <header><div class="brand"><div class="logo">{robot}</div><div><div class="title">Proyecto final Robotica</div><div class="sub">PicoCalc Robot Arm</div></div><details><summary>{people}<span>Team</span>{caret}</summary><ul class="team">{team}</ul></details></div></header>
 <main><div class="meta"><div>Selected <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
 <div class="moves"><button id="leftBtn" onpointerdown="holdMove(-1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{left}</button><button id="rightBtn" onpointerdown="holdMove(1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{right}</button></div>
-<div class="grid">{rows}</div><button class="panic" onclick="stopAll()">{stop}<span>Stop</span></button></main><footer>Grip GP2 | Actuator GP3 | Base 4/5 | Shoulder 21/28</footer>
+<div class="grid">{rows}</div><button class="panic" onclick="stopAll()">{stop}<span>Stop</span></button></main><footer>Grip GP2 | Actuator GP3 one-way | Base 4/5 | Shoulder 21/28</footer>
 <script>
 let busy=false,pending=null,holdTimer=null;
 function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
