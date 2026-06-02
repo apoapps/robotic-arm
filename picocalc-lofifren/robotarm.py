@@ -24,6 +24,7 @@ config = {
     "move_ms": 250,
     "step": 5,
 }
+axis_steps = (15, 5, 5, 10)
 
 gpio_pairs = (
     (4, 5),    # Q1
@@ -375,7 +376,7 @@ function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()
 function setAxis(i){{api('/cmd?a=axis&i='+i)}}
 function move(d){{api('/cmd?a=move&d='+d)}}
 function moveAxis(i,d){{api('/cmd?a=move&i='+i+'&d='+d)}}
-function repeat(p){{api(p);holdTimer=setInterval(()=>api(p),360)}}
+function repeat(p){{api(p);holdTimer=setInterval(()=>api(p),180)}}
 function holdMove(d){{releaseHold(false);repeat('/cmd?a=move&d='+d)}}
 function holdAxis(i,d){{releaseHold(false);repeat('/cmd?a=move&i='+i+'&d='+d)}}
 function releaseHold(sendStop=true){{if(holdTimer){{clearInterval(holdTimer);holdTimer=null}}if(sendStop)api('/cmd?a=stop')}}
@@ -425,7 +426,7 @@ def adjust_manual(delta, axis=None):
     global status, joint
     if axis is not None:
         joint = clamp(axis, 0, 3)
-    manual[joint] = clamp(manual[joint] + (delta * int(config["step"])), 0, 180)
+    manual[joint] = clamp(manual[joint] + (delta * axis_steps[joint]), 0, 180)
     try:
         pulse_axis(joint, delta)
         status = "{} {}".format(axis_names[joint], action_words(joint, delta))
