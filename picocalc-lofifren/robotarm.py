@@ -31,19 +31,19 @@ gpio_pairs = (
     (21, 28),  # Q2
 )
 GRIPPER_SERVO_PIN = 2
-ELBOW_ACTUATOR_PIN = 3
+ELBOW_ACTUATOR_PINS = (3, 1)
 
 labels = ("GRIP", "BASE", "SHLD", "ELBW")
 axis_names = ("Gripper", "Base motor", "Shoulder motor", "Elbow actuator")
 axis_short_names = ("Gripper", "Base", "Shoulder", "Actuator")
-pin_names = ("GP2", "GP4/5", "GP21/28", "GP3")
+pin_names = ("GP2", "GP4/5", "GP21/28", "GP3/RX")
 manual = [90, 90, 90, 90]
 joint = 0
 status = "Starting"
 key_buf = bytearray(16)
 gpio_pins = None
 gripper_pwm = None
-elbow_pin = None
+elbow_pins = None
 web_socket = None
 web_ip = "192.168.4.1"
 web_port = 80
@@ -82,8 +82,6 @@ def clamp(value, low, high):
 def action_words(axis, direction):
     if axis == 0:
         return "Open" if direction > 0 else "Close"
-    if axis == 3:
-        return "Extend" if direction > 0 else "Stop"
     return "Forward" if direction > 0 else "Back"
 
 
@@ -152,12 +150,15 @@ def save_config():
 
 
 def init_gpio():
-    global gpio_pins, gripper_pwm, elbow_pin
+    global gpio_pins, gripper_pwm, elbow_pins
     if gpio_pins is not None:
         return
     gripper_pwm = PWM(Pin(GRIPPER_SERVO_PIN))
     gripper_pwm.freq(50)
-    elbow_pin = Pin(ELBOW_ACTUATOR_PIN, Pin.OUT, value=0)
+    elbow_pins = (
+        Pin(ELBOW_ACTUATOR_PINS[0], Pin.OUT, value=0),
+        Pin(ELBOW_ACTUATOR_PINS[1], Pin.OUT, value=0),
+    )
     gpio_pins = []
     for a, b in gpio_pairs:
         gpio_pins.append((Pin(a, Pin.OUT, value=0), Pin(b, Pin.OUT, value=0)))
@@ -168,7 +169,8 @@ def stop_gpio():
     for p1, p2 in gpio_pins:
         p1.value(0)
         p2.value(0)
-    elbow_pin.value(0)
+    elbow_pins[0].value(0)
+    elbow_pins[1].value(0)
 
 
 def set_servo(pwm, angle):
@@ -189,10 +191,12 @@ def pulse_axis(axis, direction):
         time.sleep_ms(80)
         return
     if axis == 3:
-        elbow_pin.value(1 if direction > 0 else 0)
-        if direction > 0:
-            time.sleep_ms(int(config["move_ms"]))
-            elbow_pin.value(0)
+        p1, p2 = elbow_pins
+        p1.value(1 if direction > 0 else 0)
+        p2.value(0 if direction > 0 else 1)
+        time.sleep_ms(int(config["move_ms"]))
+        p1.value(0)
+        p2.value(0)
         return
     p1, p2 = gpio_pins[axis - 1]
     p1.value(1 if direction > 0 else 0)
@@ -368,7 +372,7 @@ button:active{{background:#000;color:#fff}}
 <header><div class="brand"><div class="logo">{robot}</div><div><div class="title">Proyecto final Robotica</div><div class="sub">PicoCalc Robot Arm</div></div><details><summary>{people}<span>Team</span>{caret}</summary><ul class="team">{team}</ul></details></div></header>
 <main><div class="meta"><div>Selected <b id="axisName">{axis}</b></div><div>Pulse <b>{pulse} ms</b></div><div>Status</div><b id="status">{status}</b></div>
 <div class="moves"><button id="leftBtn" onpointerdown="holdMove(-1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{left}</button><button id="rightBtn" onpointerdown="holdMove(1);return false" onpointerup="releaseHold()" onpointercancel="releaseHold()" onpointerleave="releaseHold()">{right}</button></div>
-<div class="grid">{rows}</div><button class="panic" onclick="stopAll()">{stop}<span>Stop</span></button></main><footer>Grip GP2 | Actuator GP3 one-way | Base 4/5 | Shoulder 21/28</footer>
+<div class="grid">{rows}</div><button class="panic" onclick="stopAll()">{stop}<span>Stop</span></button></main><footer>Grip GP2 | Actuator GP3/UART0_RX | Base 4/5 | Shoulder 21/28</footer>
 <script>
 let busy=false,pending=null,holdTimer=null;
 function api(p){{if(busy){{pending=p;return}}busy=true;fetch(p).then(r=>r.json()).then(update).catch(()=>0).finally(()=>{{busy=false;if(pending){{let x=pending;pending=null;api(x)}}}})}}
