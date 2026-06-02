@@ -11,11 +11,7 @@ Este proyecto controla un brazo robotico desde una PicoCalc con Raspberry Pi Pic
 
 La version actual no separa el modo manual y el modo web. Es un solo controlador: la TUI y la web mueven los mismos ejes, usan el mismo estado interno y mandan pulsos a los mismos pines.
 
-Repositorio en GitHub:
-
-```text
-https://github.com/apoapps/robotic-arm
-```
+Repositorio en GitHub: [apoapps/robotic-arm](https://github.com/apoapps/robotic-arm)
 
 ## Que se programo
 
